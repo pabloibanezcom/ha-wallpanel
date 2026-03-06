@@ -1,7 +1,7 @@
-type View = 'inicio' | 'luces' | 'dispositivos' | 'camaras';
+export type View = 'inicio' | 'luces' | 'dispositivos' | 'camaras';
 
 const VIEWS: { id: View; label: string }[] = [
-  { id: 'inicio', label: 'Inicio' },
+  { id: 'inicio', label: 'Dashboard' },
   { id: 'luces', label: 'Luces' },
   { id: 'dispositivos', label: 'Dispositivos' },
   { id: 'camaras', label: 'Cámaras' },
@@ -14,24 +14,27 @@ interface NavProps {
 
 export function Nav({ active, onNavigate }: NavProps) {
   return (
-    <div className="flex justify-center pt-6 pb-2 px-4">
-      <div className="flex items-center gap-1 bg-white/[0.07] backdrop-blur-xl border border-white/10 rounded-full p-1">
-        {VIEWS.map((view) => (
+    <div className="flex items-center justify-between px-6 py-3 border-b border-white/[0.06] flex-shrink-0">
+      <div className="min-w-[160px]" />
+
+      {/* Center tabs */}
+      <div className="flex items-center gap-0.5 bg-white/[0.07] border border-white/[0.09] rounded-full p-1">
+        {VIEWS.map((v) => (
           <button
-            key={view.id}
-            onClick={() => onNavigate(view.id)}
-            className={`px-5 py-2 rounded-full text-sm transition-all duration-200 ${
-              active === view.id
-                ? 'bg-white/95 text-[#0d1b2e] font-semibold shadow-sm'
-                : 'text-white/50 hover:text-white/80 font-medium'
+            key={v.id}
+            onClick={() => onNavigate(v.id)}
+            className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+              active === v.id
+                ? 'bg-white text-[#0d1b2e] font-semibold shadow-sm'
+                : 'text-white/50 hover:text-white/80'
             }`}
           >
-            {view.label}
+            {v.label}
           </button>
         ))}
       </div>
+
+      <div className="min-w-[160px]" />
     </div>
   );
 }
-
-export type { View };

@@ -13,30 +13,44 @@ function Dashboard() {
   const { connected } = useHA();
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden">
-      {/* Background */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${haUrl}/local/casa.jpeg)` }}
-      />
-      <div className="absolute inset-0 bg-[rgba(5,12,24,0.72)]" />
+    <div
+      className="h-screen w-screen flex items-stretch p-3"
+      style={{
+        background: '#080f1a',
+        backgroundImage: `url(${haUrl}/local/casa.jpeg)`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      {/* Outer dark overlay */}
+      <div className="absolute inset-0 bg-[rgba(4,10,20,0.55)]" />
 
-      {/* Content */}
-      <div className="relative z-10 h-full flex flex-col">
+      {/* Dashboard card */}
+      <div className="relative z-10 flex-1 rounded-3xl overflow-hidden flex flex-col border border-white/[0.07] shadow-[0_8px_64px_rgba(0,0,0,0.7)]" style={{ background: 'rgba(8,16,30,0.6)', backdropFilter: 'blur(2px)' }}>
         <Nav active={view} onNavigate={setView} />
 
-        {!connected && (
+        {!connected ? (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-white/40 text-sm">Conectando a Home Assistant…</p>
           </div>
-        )}
-
-        {connected && (
-          <main className="flex-1 overflow-y-auto px-4 pb-4">
+        ) : (
+          <main className="flex-1 overflow-hidden">
             {view === 'inicio' && <Inicio />}
-            {view === 'luces' && <Luces />}
-            {view === 'dispositivos' && <Dispositivos />}
-            {view === 'camaras' && <Camaras />}
+            {view === 'luces' && (
+              <div className="p-4 h-full overflow-y-auto">
+                <Luces />
+              </div>
+            )}
+            {view === 'dispositivos' && (
+              <div className="p-4 h-full overflow-y-auto">
+                <Dispositivos />
+              </div>
+            )}
+            {view === 'camaras' && (
+              <div className="p-4 h-full overflow-y-auto">
+                <Camaras />
+              </div>
+            )}
           </main>
         )}
       </div>
