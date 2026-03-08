@@ -56,7 +56,7 @@ export function Luces() {
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {group.lights.map((light) => (
-              <LightCard key={light.id} entityId={light.id} name={light.name} showBrightness />
+              <LightCard key={light.id} entityId={light.id} name={light.name} />
             ))}
           </div>
         </div>

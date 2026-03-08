@@ -1,0 +1,76 @@
+name: Deploy HA Dashboard
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ha-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on:
+      - self-hosted
+      - linux
+      - ha-lan
+    env:
+      HA_SSH_HOST: ${{ secrets.HA_SSH_HOST }}
+      HA_SSH_USER: ${{ secrets.HA_SSH_USER }}
+      HA_SSH_PORT: ${{ secrets.HA_SSH_PORT }}
+      HA_SSH_PRIVATE_KEY: ${{ secrets.HA_SSH_PRIVATE_KEY }}
+      HA_SSH_KNOWN_HOSTS: ${{ secrets.HA_SSH_KNOWN_HOSTS }}
+      HA_REMOTE_DIR: /config/www/ha-wallpanel
+    steps:
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          test -n "${HA_SSH_HOST}" || (echo "::error::Missing HA_SSH_HOST secret" && exit 1)
+          test -n "${HA_SSH_USER}" || (echo "::error::Missing HA_SSH_USER secret" && exit 1)
+          test -n "${HA_SSH_PRIVATE_KEY}" || (echo "::error::Missing HA_SSH_PRIVATE_KEY secret" && exit 1)
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web app for Home Assistant
+        run: VITE_BASE_PATH=/local/ha-wallpanel/ pnpm build
+
+      - name: Setup SSH key
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${HA_SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Configure known hosts
+        run: |
+          set -euo pipefail
+          PORT="${HA_SSH_PORT:-22}"
+          if [ -n "${HA_SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "${HA_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "${PORT}" "${HA_SSH_HOST}" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy dist to Home Assistant
+        run: |
+          set -euo pipefail
+          bash scripts/deploy-ha.sh

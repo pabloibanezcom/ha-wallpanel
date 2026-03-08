@@ -1,12 +1,13 @@
 {
-  "name": "ha-dashboard",
+  "name": "ha-wallpanel",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy:ha": "bash scripts/deploy-ha.sh"
   },
   "dependencies": {
     "home-assistant-js-websocket": "^9.3.0",

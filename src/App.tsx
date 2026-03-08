@@ -5,8 +5,9 @@ import { Inicio } from './views/Inicio';
 import { Luces } from './views/Luces';
 import { Dispositivos } from './views/Dispositivos';
 import { Camaras } from './views/Camaras';
+import { getHaUrl } from './config/ha';
 
-const haUrl = import.meta.env.VITE_HA_URL as string;
+const haUrl = getHaUrl();
 
 const VIEWS_ORDER: View[] = ['inicio', 'luces', 'dispositivos', 'camaras'];
 const SWIPE_THRESHOLD = 50;

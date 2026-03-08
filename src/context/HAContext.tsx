@@ -12,8 +12,10 @@ import {
   callService as haCallService,
   createConnection,
   createLongLivedTokenAuth,
+  getAuth,
   subscribeEntities,
 } from 'home-assistant-js-websocket';
+import { getHaToken, getHaUrl } from '../config/ha';
 
 interface HAContextValue {
   connection: Connection | null;
@@ -41,12 +43,14 @@ export function HAProvider({ children }: { children: ReactNode }) {
   const connRef = useRef<Connection | null>(null);
 
   useEffect(() => {
-    const haUrl = import.meta.env.VITE_HA_URL as string;
-    const haToken = import.meta.env.VITE_HA_TOKEN as string;
+    const haUrl = getHaUrl();
+    const haToken = getHaToken();
 
     async function connect() {
       try {
-        const auth = createLongLivedTokenAuth(haUrl, haToken);
+        const auth = haToken
+          ? createLongLivedTokenAuth(haUrl, haToken)
+          : await getAuth({ hassUrl: haUrl, limitHassInstance: true });
         const conn = await createConnection({ auth });
         connRef.current = conn;
         setConnection(conn);

@@ -5,26 +5,16 @@ import { Card } from './Card';
 interface LightCardProps {
   entityId: string;
   name: string;
-  showBrightness?: boolean;
 }
 
-export function LightCard({ entityId, name, showBrightness = false }: LightCardProps) {
+export function LightCard({ entityId, name }: LightCardProps) {
   const entity = useEntity(entityId);
   const { callService } = useHA();
 
   const isOn = entity?.state === 'on';
-  const brightness = entity?.attributes.brightness as number | undefined;
-  const brightnessPercent = brightness ? Math.round((brightness / 255) * 100) : 0;
 
   function toggle() {
     callService('light', isOn ? 'turn_off' : 'turn_on', { entity_id: entityId });
-  }
-
-  function setBrightness(value: number) {
-    callService('light', 'turn_on', {
-      entity_id: entityId,
-      brightness: Math.round((value / 100) * 255),
-    });
   }
 
   return (

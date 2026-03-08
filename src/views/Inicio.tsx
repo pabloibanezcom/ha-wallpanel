@@ -4,8 +4,6 @@ import { callService as haCallService } from 'home-assistant-js-websocket';
 import { useEntity } from '../hooks/useEntity';
 import { useHA } from '../context/HAContext';
 
-const haUrl = import.meta.env.VITE_HA_URL as string;
-
 // ── Shared primitives ─────────────────────────────────────────────────────────
 
 function GlassCard({ children, className = '' }: { children: ReactNode; className?: string }) {

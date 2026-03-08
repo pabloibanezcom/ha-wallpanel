@@ -3,8 +3,9 @@ import { useEntity } from '../hooks/useEntity';
 import { useHA } from '../context/HAContext';
 import { Card } from '../components/Card';
 import { useEffect, useRef, useState } from 'react';
+import { getHaUrl } from '../config/ha';
 
-const haUrl = import.meta.env.VITE_HA_URL as string;
+const haUrl = getHaUrl();
 
 function CameraFeed({ entityId, name }: { entityId: string; name: string }) {
   const { connection } = useHA();
