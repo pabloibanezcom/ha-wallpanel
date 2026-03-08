@@ -46,7 +46,8 @@ jobs:
           test -d dist || (echo "::error::Missing dist directory after build" && exit 1)
 
           publish_dir="$(mktemp -d)"
-          cp -R dist/. "${publish_dir}/"
+          mkdir -p "${publish_dir}/www/ha-wallpanel"
+          cp -R dist/. "${publish_dir}/www/ha-wallpanel/"
           touch "${publish_dir}/.nojekyll"
 
           cd "${publish_dir}"

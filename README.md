@@ -100,12 +100,29 @@ Use Home Assistant's **Git pull** add-on to sync this repo branch into:
 /config/www/ha-wallpanel
 ```
 
-Set it to pull:
+Use Git pull with:
 
 - Repository: `https://github.com/pabloibanezcom/ha-wallpanel.git`
-- Branch: `ha-deploy`
-- Destination: `/config/www/ha-wallpanel`
-- Repeat: enabled (for periodic sync)
+- Branch (`git_branch`): `ha-deploy`
+- Command (`git_command`): `pull`
+- Polling (`repeat.active`): `true`
+- Polling interval (`repeat.interval`): e.g. `300`
+
+Example add-on config:
+
+```yaml
+repository: "https://github.com/pabloibanezcom/ha-wallpanel.git"
+git_branch: "ha-deploy"
+git_remote: "origin"
+git_command: "pull"
+git_prune: false
+auto_restart: false
+repeat:
+  active: true
+  interval: 300
+```
+
+Note: Git pull syncs into `/config`. The workflow publishes files under `www/ha-wallpanel/` in `ha-deploy`, so they land at `/config/www/ha-wallpanel/`.
 
 ### 2. Push to `main`
 
