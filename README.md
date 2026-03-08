@@ -84,58 +84,33 @@ Then restart Home Assistant. The route `/web-app` will load your static app from
 This repo now includes:
 
 - Workflow: `.github/workflows/deploy-ha.yml`
-- Deploy script: `scripts/deploy-ha.sh`
 
-Important: GitHub-hosted runners cannot reach `192.168.1.137` (private LAN IP).  
-Use a **self-hosted runner** in your local network.
+This workflow is **GitHub-hosted** (no LAN runner required).  
+On every push to `main`, it:
 
-### 1. Prepare Home Assistant SSH access
+1. Installs dependencies
+2. Builds with `VITE_BASE_PATH=/local/ha-wallpanel/`
+3. Publishes the built files to branch `ha-deploy`
 
-Enable SSH access to your HA host (for example through an SSH add-on) and verify this works from your runner machine:
+### 1. Enable sync in Home Assistant (Git pull add-on)
 
-```bash
-ssh <user>@192.168.1.137
-```
-
-The deploy target path is:
+Use Home Assistant's **Git pull** add-on to sync this repo branch into:
 
 ```text
 /config/www/ha-wallpanel
 ```
 
-### 2. Create a self-hosted GitHub runner in LAN
+Set it to pull:
 
-Create a runner attached to this repo on a machine inside your home network and add label:
+- Repository: `https://github.com/pabloibanezcom/ha-wallpanel.git`
+- Branch: `ha-deploy`
+- Destination: `/config/www/ha-wallpanel`
+- Repeat: enabled (for periodic sync)
 
-```text
-ha-lan
-```
+### 2. Push to `main`
 
-Workflow `runs-on` is:
-
-```text
-self-hosted, linux, ha-lan
-```
-
-### 3. Add repository secrets
-
-In GitHub repo settings, add:
-
-- `HA_SSH_HOST` (example: `192.168.1.137`)
-- `HA_SSH_USER` (SSH user in HA)
-- `HA_SSH_PRIVATE_KEY` (private key used by Actions runner)
-- Optional: `HA_SSH_PORT` (default `22`)
-- Optional: `HA_SSH_KNOWN_HOSTS` (recommended for strict host key pinning)
-
-### 4. Push to `main`
-
-Every push to `main` will:
-
-1. Install dependencies
-2. Build with `VITE_BASE_PATH=/local/ha-wallpanel/`
-3. Deploy `dist/` to `/config/www/ha-wallpanel`
-
-Your app will then be available at:
+After each push, GitHub updates `ha-deploy`.  
+When HA Git pull syncs, your app is served from:
 
 ```text
 http://192.168.1.137:8123/web-app

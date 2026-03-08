@@ -1,4 +1,4 @@
-name: Deploy HA Dashboard
+name: Publish HA Deploy Branch
 
 on:
   push:
@@ -7,30 +7,17 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-ha-main
+  group: publish-ha-deploy-main
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    runs-on:
-      - self-hosted
-      - linux
-      - ha-lan
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
-      HA_SSH_HOST: ${{ secrets.HA_SSH_HOST }}
-      HA_SSH_USER: ${{ secrets.HA_SSH_USER }}
-      HA_SSH_PORT: ${{ secrets.HA_SSH_PORT }}
-      HA_SSH_PRIVATE_KEY: ${{ secrets.HA_SSH_PRIVATE_KEY }}
-      HA_SSH_KNOWN_HOSTS: ${{ secrets.HA_SSH_KNOWN_HOSTS }}
-      HA_REMOTE_DIR: /config/www/ha-wallpanel
+      DEPLOY_BRANCH: ha-deploy
     steps:
-      - name: Validate required secrets
-        run: |
-          set -euo pipefail
-          test -n "${HA_SSH_HOST}" || (echo "::error::Missing HA_SSH_HOST secret" && exit 1)
-          test -n "${HA_SSH_USER}" || (echo "::error::Missing HA_SSH_USER secret" && exit 1)
-          test -n "${HA_SSH_PRIVATE_KEY}" || (echo "::error::Missing HA_SSH_PRIVATE_KEY secret" && exit 1)
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -51,26 +38,24 @@ jobs:
       - name: Build web app for Home Assistant
         run: VITE_BASE_PATH=/local/ha-wallpanel/ pnpm build
 
-      - name: Setup SSH key
+      - name: Publish dist to deploy branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "${HA_SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          test -d dist || (echo "::error::Missing dist directory after build" && exit 1)
 
-      - name: Configure known hosts
-        run: |
-          set -euo pipefail
-          PORT="${HA_SSH_PORT:-22}"
-          if [ -n "${HA_SSH_KNOWN_HOSTS:-}" ]; then
-            printf '%s\n' "${HA_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
-          else
-            ssh-keyscan -p "${PORT}" "${HA_SSH_HOST}" > ~/.ssh/known_hosts
-          fi
-          chmod 600 ~/.ssh/known_hosts
+          publish_dir="$(mktemp -d)"
+          cp -R dist/. "${publish_dir}/"
+          touch "${publish_dir}/.nojekyll"
 
-      - name: Deploy dist to Home Assistant
-        run: |
-          set -euo pipefail
-          bash scripts/deploy-ha.sh
+          cd "${publish_dir}"
+          git init
+          git checkout -b "${DEPLOY_BRANCH}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy ${GITHUB_SHA}"
+
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin "${DEPLOY_BRANCH}"
