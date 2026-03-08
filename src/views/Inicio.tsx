@@ -572,10 +572,10 @@ export function Inicio({ className = '' }: { className?: string }) {
         {/* Main hero text + bottom bar */}
         <div className="relative z-10 flex flex-1 flex-col p-4 pt-6 min-w-0">
           <div className="flex-1">
-            <h1 className="text-white text-3xl font-bold leading-tight drop-shadow-md">
+            <h1 className="text-white text-4xl font-bold leading-tight drop-shadow-md">
               {greeting}
             </h1>
-            <p className="text-white/75 text-sm mt-1 drop-shadow">
+            <p className="text-white/75 text-base mt-1 drop-shadow">
               Bienvenido a tu casa
             </p>
           </div>

@@ -44,19 +44,6 @@ export function LightCard({ entityId, name, showBrightness = false }: LightCardP
           />
         </button>
       </div>
-      <p className="text-white/50 text-xs mb-3">
-        {entity ? (isOn ? `${brightnessPercent}%` : 'Apagada') : '—'}
-      </p>
-      {showBrightness && isOn && (
-        <input
-          type="range"
-          min={1}
-          max={100}
-          value={brightnessPercent}
-          onChange={(e) => setBrightness(Number(e.target.value))}
-          onClick={(e) => e.stopPropagation()}
-        />
-      )}
     </Card>
   );
 }
