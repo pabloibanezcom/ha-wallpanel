@@ -228,7 +228,9 @@ function SearchPanel({
         { config_entry_id: configEntryId, name: q, limit: 8 },
         undefined, true,
       );
-      setResults((result?.response as SearchResults) ?? null);
+      const response = result?.response as SearchResults;
+      console.log('[MASS search]', JSON.stringify(response?.tracks?.[0], null, 2));
+      setResults(response ?? null);
     } catch { setResults(null); }
     setSearching(false);
   }
