@@ -5,11 +5,12 @@ import { Inicio } from './views/Inicio';
 import { Luces } from './views/Luces';
 import { Dispositivos } from './views/Dispositivos';
 import { Camaras } from './views/Camaras';
+import { Musica } from './views/Musica';
 import { getHaUrl } from './config/ha';
 
 const haUrl = getHaUrl();
 
-const VIEWS_ORDER: View[] = ['inicio', 'luces', 'dispositivos', 'camaras'];
+const VIEWS_ORDER: View[] = ['inicio', 'luces', 'dispositivos', 'camaras', 'musica'];
 const SWIPE_THRESHOLD = 50;
 
 function Dashboard() {
@@ -73,7 +74,7 @@ function Dashboard() {
           </div>
         ) : (
           <main
-            className="flex-1 overflow-hidden"
+            className="flex-1 overflow-hidden relative"
             onTouchStart={onTouchStart}
             onTouchEnd={onTouchEnd}
           >
@@ -91,6 +92,11 @@ function Dashboard() {
             {view === 'camaras' && (
               <div key="camaras" className={`p-4 h-full overflow-y-auto ${animClass}`}>
                 <Camaras />
+              </div>
+            )}
+            {view === 'musica' && (
+              <div key="musica" className={`absolute inset-0 overflow-hidden ${animClass}`}>
+                <Musica />
               </div>
             )}
           </main>
