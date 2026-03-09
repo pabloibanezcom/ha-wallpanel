@@ -598,9 +598,9 @@ function MiniCalendar({ year, month, events }: { year: number; month: number; ev
 
 // ── Calendar Detail Sheet ──────────────────────────────────────────────────────
 
-function CalendarDetailSheet({ allEvents, onClose }: { allEvents: CalendarEvent[]; onClose: () => void }) {
+function CalendarDetailSheet({ allEvents, onClose, initialEvent }: { allEvents: CalendarEvent[]; onClose: () => void; initialEvent?: CalendarEvent }) {
   const [visible, setVisible] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(initialEvent ?? null);
   const [monthOffset, setMonthOffset] = useState(0);
   const [calAnimClass, setCalAnimClass] = useState('');
   const [calAnimKey, setCalAnimKey] = useState(0);
@@ -876,6 +876,12 @@ function CalendarDetailSheet({ allEvents, onClose }: { allEvents: CalendarEvent[
 function CalendarCard() {
   const allEvents = useCalendarEvents();
   const [expanded, setExpanded] = useState(false);
+  const [initialEvent, setInitialEvent] = useState<CalendarEvent | undefined>(undefined);
+
+  function openEvent(ev: CalendarEvent) {
+    setInitialEvent(ev);
+    setExpanded(true);
+  }
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
@@ -934,7 +940,7 @@ const dayName = DAYS_FULL_ES[now.getDay()];
             {todayEvents.length === 0 ? (
               <p className="text-white/25 text-xs px-0.5 py-1">Sin eventos</p>
             ) : todayEvents.map((ev, i) => (
-              <div key={`today-${i}`} className="flex items-center gap-3 rounded-xl px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
+              <div key={`today-${i}`} className="flex items-center gap-3 rounded-xl px-2.5 py-2 cursor-pointer" style={{ background: 'rgba(255,255,255,0.04)' }} onClick={() => openEvent(ev)}>
                 <div className="w-1 h-6 rounded-full flex-shrink-0" style={{ background: EVENT_COLORS[i % EVENT_COLORS.length] }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-white/85 text-xs font-medium truncate">{ev.summary}</p>
@@ -947,7 +953,7 @@ const dayName = DAYS_FULL_ES[now.getDay()];
             <>
               <p className="text-white/40 text-[10px] font-medium uppercase tracking-wider px-0.5 pt-1">Mañana</p>
               {tomorrowEvents.map((ev, i) => (
-                <div key={`tomorrow-${i}`} className="flex items-center gap-3 rounded-xl px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                <div key={`tomorrow-${i}`} className="flex items-center gap-3 rounded-xl px-2.5 py-2 cursor-pointer" style={{ background: 'rgba(255,255,255,0.04)' }} onClick={() => openEvent(ev)}>
                   <div className="w-1 h-6 rounded-full flex-shrink-0" style={{ background: EVENT_COLORS[i % EVENT_COLORS.length] }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-white/85 text-xs font-medium truncate">{ev.summary}</p>
@@ -960,7 +966,7 @@ const dayName = DAYS_FULL_ES[now.getDay()];
         </div>
       </GlassCard>
 
-      {expanded && <CalendarDetailSheet allEvents={allEvents} onClose={() => setExpanded(false)} />}
+      {expanded && <CalendarDetailSheet allEvents={allEvents} initialEvent={initialEvent} onClose={() => { setExpanded(false); setInitialEvent(undefined); }} />}
     </>
   );
 }
