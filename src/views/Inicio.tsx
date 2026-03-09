@@ -34,9 +34,9 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle?: () => void }) {
   );
 }
 
-function ExpandIcon() {
+function ExpandIcon({ onClick }: { onClick?: () => void }) {
   return (
-    <button className="text-white/25 hover:text-white/60 transition-colors flex-shrink-0">
+    <button onClick={onClick} className="text-white/25 hover:text-white/60 transition-colors flex-shrink-0">
       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 14l-2 6 6-2M3.5 19.5l7-7M20 10l2-6-6 2M20.5 4.5l-7 7" />
       </svg>
@@ -64,6 +64,19 @@ type ForecastDay = {
   temperature: number;
   templow?: number;
 };
+
+type ForecastHour = {
+  datetime: string;
+  condition: string;
+  temperature: number;
+  precipitation_probability?: number;
+  wind_speed?: number;
+};
+
+function bearingToCompass(deg: number): string {
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+  return dirs[Math.round(deg / 45) % 8];
+}
 
 const CONDITION_ES: Record<string, string> = {
   sunny: 'Despejado', clear: 'Despejado', 'clear-night': 'Despejado',
@@ -165,10 +178,191 @@ function WeatherIcon({ condition, className = 'w-12 h-12' }: { condition: string
   );
 }
 
+// ── Weather Detail Sheet ───────────────────────────────────────────────────────
+
+function WeatherDetailSheet({
+  entity,
+  forecast,
+  hourlyForecast,
+  onClose,
+}: {
+  entity: ReturnType<typeof useEntity>;
+  forecast: ForecastDay[];
+  hourlyForecast: ForecastHour[];
+  onClose: () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const t = requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+    return () => cancelAnimationFrame(t);
+  }, []);
+
+  function handleClose() {
+    setVisible(false);
+    setTimeout(onClose, 380);
+  }
+
+  const temp = entity?.attributes.temperature as number | undefined;
+  const humidity = entity?.attributes.humidity as number | undefined;
+  const windSpeed = entity?.attributes.wind_speed as number | undefined;
+  const windGust = entity?.attributes.wind_gust_speed as number | undefined;
+  const windBearing = entity?.attributes.wind_bearing as number | undefined;
+  const condition = entity?.state ?? 'cloudy';
+  const conditionLabel = CONDITION_ES[condition] ?? condition;
+
+  const stats = [
+    { label: 'Humedad', value: humidity != null ? `${humidity}%` : '—', icon: 'M12 2c-4 6-6 9-6 12a6 6 0 0012 0c0-3-2-6-6-12z' },
+    { label: 'Viento', value: windSpeed != null ? `${windSpeed} km/h` : '—', icon: 'M9.59 4.59A2 2 0 1111 8H2m10.59 11.41A2 2 0 1014 16H2m15.73-8.27A2.5 2.5 0 1119.5 12H2' },
+    { label: 'Ráfagas', value: windGust != null ? `${windGust} km/h` : '—', icon: 'M14 5l7 7m0 0l-7 7m7-7H3' },
+    { label: 'Dirección', value: windBearing != null ? bearingToCompass(windBearing) : '—', icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
+  ];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40"
+        style={{
+          background: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 0.35s ease',
+        }}
+        onClick={handleClose}
+      />
+
+      {/* Sheet */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl flex flex-col"
+        style={{
+          background: 'rgba(8,18,36,0.97)',
+          backdropFilter: 'blur(32px)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderBottom: 'none',
+          maxHeight: '82vh',
+          transform: visible ? 'translateY(0)' : 'translateY(100%)',
+          transition: 'transform 0.38s cubic-bezier(0.32, 0.72, 0, 1)',
+        }}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 rounded-full bg-white/20" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-2 pb-4 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <WeatherIcon condition={condition} className="w-14 h-14" />
+            <div>
+              <p className="text-white font-bold leading-none" style={{ fontSize: '3.5rem' }}>
+                {temp != null ? `${temp}°` : '—'}
+              </p>
+              <p className="text-white/50 text-sm mt-1">{conditionLabel}</p>
+            </div>
+          </div>
+          <button
+            onClick={handleClose}
+            className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/50 hover:text-white/80 hover:bg-white/15 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="overflow-y-auto flex-1 px-6 pb-8" style={{ scrollbarWidth: 'none' }}>
+          {/* Stats grid */}
+          <div className="grid grid-cols-4 gap-2 mb-6">
+            {stats.map(({ label, value, icon }) => (
+              <div
+                key={label}
+                className="rounded-2xl p-3 flex flex-col gap-2"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}
+              >
+                <svg className="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
+                </svg>
+                <p className="text-white font-semibold text-lg leading-none">{value}</p>
+                <p className="text-white/40 text-xs">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Hourly forecast */}
+          {hourlyForecast.length > 0 && (
+            <div className="mb-6">
+              <p className="text-white/50 text-xs font-medium uppercase tracking-wider mb-3">Próximas horas</p>
+              <div
+                className="flex gap-2 overflow-x-auto pb-1"
+                style={{ scrollbarWidth: 'none' }}
+                onTouchStart={e => e.stopPropagation()}
+                onTouchEnd={e => e.stopPropagation()}
+              >
+                {hourlyForecast.map((h) => {
+                  const date = new Date(h.datetime);
+                  const hLabel = `${date.getHours().toString().padStart(2, '0')}h`;
+                  return (
+                    <div
+                      key={h.datetime}
+                      className="flex-shrink-0 flex flex-col items-center gap-2 rounded-2xl px-3 py-3"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)', minWidth: 58 }}
+                    >
+                      <span className="text-white/40 text-[11px]">{hLabel}</span>
+                      <WeatherIcon condition={h.condition} className="w-6 h-6" />
+                      <span className="text-white/80 text-[13px] font-medium">{h.temperature}°</span>
+                      {h.precipitation_probability != null && (
+                        <span className="text-sky-400 text-[10px]">{h.precipitation_probability}%</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Daily forecast */}
+          {forecast.length > 0 && (
+            <div>
+              <p className="text-white/50 text-xs font-medium uppercase tracking-wider mb-3">Próximos días</p>
+              <div className="space-y-1.5">
+                {forecast.map((day) => {
+                  const date = new Date(day.datetime);
+                  const dayLabel = DAYS_ES[date.getDay()];
+                  return (
+                    <div
+                      key={day.datetime}
+                      className="flex items-center gap-4 rounded-2xl px-4 py-3"
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
+                    >
+                      <span className="text-white/50 text-sm w-8">{dayLabel}</span>
+                      <WeatherIcon condition={day.condition} className="w-6 h-6" />
+                      <span className="text-white/50 text-xs flex-1">{CONDITION_ES[day.condition] ?? day.condition}</span>
+                      <div className="flex items-center gap-3">
+                        {day.templow != null && <span className="text-white/30 text-sm">{day.templow}°</span>}
+                        <span className="text-white/80 text-sm font-medium">{day.temperature}°</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Weather Card ───────────────────────────────────────────────────────────────
+
 function WeatherCard() {
   const entity = useEntity('weather.aemet');
   const { connection } = useHA();
   const [forecast, setForecast] = useState<ForecastDay[]>([]);
+  const [hourlyForecast, setHourlyForecast] = useState<ForecastHour[]>([]);
+  const [expanded, setExpanded] = useState(false);
 
   const temp = entity?.attributes.temperature as number | undefined;
   const humidity = entity?.attributes.humidity as number | undefined;
@@ -179,99 +373,126 @@ function WeatherCard() {
   useEffect(() => {
     if (!connection) return;
     let cancelled = false;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (haCallService as any)(connection, 'weather', 'get_forecasts',
       { entity_id: 'weather.aemet', type: 'daily' },
       undefined, true,
     ).then((result: { response?: Record<string, { forecast?: ForecastDay[] }> }) => {
-      if (!cancelled) {
-        setForecast(result.response?.['weather.aemet']?.forecast?.slice(0, 5) ?? []);
-      }
+      if (!cancelled) setForecast(result.response?.['weather.aemet']?.forecast?.slice(0, 5) ?? []);
     }).catch(() => {});
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (haCallService as any)(connection, 'weather', 'get_forecasts',
+      { entity_id: 'weather.aemet', type: 'hourly' },
+      undefined, true,
+    ).then((result: { response?: Record<string, { forecast?: ForecastHour[] }> }) => {
+      if (!cancelled) setHourlyForecast(result.response?.['weather.aemet']?.forecast?.slice(0, 24) ?? []);
+    }).catch(() => {});
+
     return () => { cancelled = true; };
   }, [connection]);
 
   return (
-    <GlassCard>
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <p className="text-white/60 text-xs font-medium mb-1">Tiempo exterior</p>
-          <div className="flex items-end gap-3">
-            <span className="text-white font-bold leading-none" style={{ fontSize: '3.25rem' }}>
-              {temp != null ? `${temp}°` : '—'}
-            </span>
-            <WeatherIcon condition={condition} className="w-12 h-12 mb-1" />
+    <>
+      <GlassCard>
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <p className="text-white/60 text-xs font-medium mb-1">Tiempo exterior</p>
+            <div className="flex items-end gap-3">
+              <span className="text-white font-bold leading-none" style={{ fontSize: '3.25rem' }}>
+                {temp != null ? `${temp}°` : '—'}
+              </span>
+              <WeatherIcon condition={condition} className="w-12 h-12 mb-1" />
+            </div>
+            <p className="text-white/50 text-sm mt-1">{conditionLabel}</p>
           </div>
-          <p className="text-white/50 text-sm mt-1">{conditionLabel}</p>
+          <ExpandIcon onClick={() => setExpanded(true)} />
         </div>
-        <ExpandIcon />
-      </div>
 
-      {/* Stats row */}
-      <div className="flex gap-4 mb-4 pb-3 border-b border-white/[0.06]">
-        <div className="flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-          </svg>
-          <span className="text-white/50 text-xs">{humidity != null ? `${humidity}%` : '—'}</span>
+        {/* Stats row */}
+        <div className="flex gap-4 mb-4 pb-3 border-b border-white/[0.06]">
+          <div className="flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+            </svg>
+            <span className="text-white/50 text-xs">{humidity != null ? `${humidity}%` : '—'}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+            <span className="text-white/50 text-xs">{windSpeed != null ? `${windSpeed} km/h` : '—'}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
-          <span className="text-white/50 text-xs">{windSpeed != null ? `${windSpeed} km/h` : '—'}</span>
-        </div>
-      </div>
 
-      {/* 5-day forecast */}
-      {forecast.length > 0 && (
-        <div className="flex justify-between gap-1">
-          {forecast.map((day) => {
-            const date = new Date(day.datetime);
-            const dayLabel = DAYS_ES[date.getDay()];
-            return (
-              <div key={day.datetime} className="flex-1 flex flex-col items-center gap-1">
-                <span className="text-white/35 text-[10px]">{dayLabel}</span>
-                <WeatherIcon condition={day.condition} className="w-5 h-5" />
-                <span className="text-white/70 text-[11px] font-medium">{day.temperature}°</span>
-                {day.templow != null && (
-                  <span className="text-white/30 text-[10px]">{day.templow}°</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        {/* 5-day forecast */}
+        {forecast.length > 0 && (
+          <div className="flex justify-between gap-1">
+            {forecast.map((day) => {
+              const date = new Date(day.datetime);
+              const dayLabel = DAYS_ES[date.getDay()];
+              return (
+                <div key={day.datetime} className="flex-1 flex flex-col items-center gap-1">
+                  <span className="text-white/35 text-[10px]">{dayLabel}</span>
+                  <WeatherIcon condition={day.condition} className="w-5 h-5" />
+                  <span className="text-white/70 text-[11px] font-medium">{day.temperature}°</span>
+                  {day.templow != null && (
+                    <span className="text-white/30 text-[10px]">{day.templow}°</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </GlassCard>
+
+      {expanded && (
+        <WeatherDetailSheet
+          entity={entity}
+          forecast={forecast}
+          hourlyForecast={hourlyForecast}
+          onClose={() => setExpanded(false)}
+        />
       )}
-    </GlassCard>
+    </>
   );
 }
 
 // ── Calendar widget ────────────────────────────────────────────────────────────
 
+type CalendarEventStart = { dateTime?: string; date?: string } | string;
+
 type CalendarEvent = {
   summary: string;
-  start: { dateTime?: string; date?: string };
-  end: { dateTime?: string; date?: string };
+  start: CalendarEventStart;
+  end: CalendarEventStart;
+  description?: string;
+  location?: string;
 };
 
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MONTHS_SHORT_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const DAYS_FULL_ES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 
-function todayAt(h: number, m = 0): string {
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d.toISOString();
+function startToString(start: CalendarEventStart): string {
+  if (typeof start === 'string') return start;
+  return start.dateTime ?? start.date ?? '';
 }
 
-const MOCK_EVENTS: CalendarEvent[] = [
-  { summary: 'Revisión caldera', start: { dateTime: todayAt(9, 0) }, end: { dateTime: todayAt(10, 0) } },
-  { summary: 'Almuerzo familiar', start: { dateTime: todayAt(14, 0) }, end: { dateTime: todayAt(15, 30) } },
-  { summary: 'Recogida colegio', start: { dateTime: todayAt(17, 0) }, end: { dateTime: todayAt(17, 30) } },
-];
+function eventLocalDate(ev: CalendarEvent): Date {
+  const s = startToString(ev.start);
+  // All-day: "YYYY-MM-DD" — parse as local midnight to avoid UTC offset shift
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  return new Date(s);
+}
 
-function useCalendarEvents() {
+function useCalendarEvents(daysAhead = 60) {
   const { entities, connection } = useHA();
-  const [events, setEvents] = useState<CalendarEvent[]>(MOCK_EVENTS);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
 
   const calendarIds = Object.keys(entities).filter((id) => id.startsWith('calendar.'));
 
@@ -280,12 +501,14 @@ function useCalendarEvents() {
     let cancelled = false;
 
     const now = new Date();
-    const end = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    // Start from midnight today so we don't miss events that began before this moment
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const end = new Date(start.getTime() + daysAhead * 24 * 60 * 60 * 1000);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (haCallService as any)(
       connection, 'calendar', 'get_events',
-      { entity_id: calendarIds, start_date_time: now.toISOString(), end_date_time: end.toISOString() },
+      { entity_id: calendarIds, start_date_time: start.toISOString(), end_date_time: end.toISOString() },
       undefined, true,
     ).then((result: { response?: Record<string, { events?: CalendarEvent[] }> }) => {
       if (!cancelled) {
@@ -293,12 +516,8 @@ function useCalendarEvents() {
         for (const id of calendarIds) {
           all.push(...(result.response?.[id]?.events ?? []));
         }
-        all.sort((a, b) => {
-          const ta = new Date(a.start.dateTime ?? a.start.date ?? '').getTime();
-          const tb = new Date(b.start.dateTime ?? b.start.date ?? '').getTime();
-          return ta - tb;
-        });
-        if (all.length > 0) setEvents(all);
+        all.sort((a, b) => eventLocalDate(a).getTime() - eventLocalDate(b).getTime());
+        setEvents(all);
       }
     }).catch(() => {});
 
@@ -310,16 +529,366 @@ function useCalendarEvents() {
 }
 
 function formatEventTime(event: CalendarEvent): string {
-  if (event.start.date && !event.start.dateTime) return 'Todo el día';
-  if (!event.start.dateTime) return '';
-  const d = new Date(event.start.dateTime);
+  const s = startToString(event.start);
+  if (!s || /^\d{4}-\d{2}-\d{2}$/.test(s)) return 'Todo el día';
+  const d = new Date(s);
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
-function CalendarCard() {
-  const events = useCalendarEvents();
+const EVENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6'];
+
+// ── Mini Calendar ─────────────────────────────────────────────────────────────
+
+function MiniCalendar({ year, month, events }: { year: number; month: number; events: CalendarEvent[] }) {
+  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Mon=0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayStr = (() => {
+    const t = new Date();
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  })();
+
+  const weekDays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+  return (
+    <div>
+      <p className="text-white/60 text-sm font-semibold mb-3">
+        {MONTHS_ES[month]} {year}
+      </p>
+      {/* Week header */}
+      <div className="grid grid-cols-7 mb-1">
+        {weekDays.map(d => (
+          <div key={d} className="text-center text-white/25 text-[10px] font-medium py-1">{d}</div>
+        ))}
+      </div>
+      {/* Days grid */}
+      <div className="grid grid-cols-7">
+        {/* Leading empty cells */}
+        {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+        {/* Day cells */}
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const isToday = dateStr === todayStr;
+          const dayEvents = events.filter(ev => {
+            const ed = eventLocalDate(ev);
+            return ed.getFullYear() === year && ed.getMonth() === month && ed.getDate() === d;
+          });
+          return (
+            <div key={d} className="flex flex-col items-center py-0.5">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs leading-none ${
+                isToday ? 'bg-white text-[#0d1b2e] font-semibold' : 'text-white/55'
+              }`}>
+                {d}
+              </div>
+              <div className="flex gap-[3px] h-1.5 items-center mt-0.5">
+                {dayEvents.slice(0, 3).map((_, ei) => (
+                  <div
+                    key={ei}
+                    className="w-1 h-1 rounded-full"
+                    style={{ background: EVENT_COLORS[ei % EVENT_COLORS.length] }}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Calendar Detail Sheet ──────────────────────────────────────────────────────
+
+function CalendarDetailSheet({ allEvents, onClose }: { allEvents: CalendarEvent[]; onClose: () => void }) {
+  const [visible, setVisible] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [calAnimClass, setCalAnimClass] = useState('');
+  const [calAnimKey, setCalAnimKey] = useState(0);
+  const calTouchStartX = useRef(0);
+
+  useEffect(() => {
+    const t = requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+    return () => cancelAnimationFrame(t);
+  }, []);
+
+  function handleClose() {
+    setVisible(false);
+    setTimeout(onClose, 380);
+  }
+
   const now = new Date();
-  const dayName = DAYS_FULL_ES[now.getDay()];
+
+  function getMonthYear(offset: number): { year: number; month: number } {
+    const d = new Date(now.getFullYear(), now.getMonth() + offset);
+    return { year: d.getFullYear(), month: d.getMonth() };
+  }
+
+  function navigateMonths(dir: 'forward' | 'back') {
+    if (dir === 'back' && monthOffset === 0) return;
+    setMonthOffset(prev => dir === 'forward' ? prev + 2 : prev - 2);
+    setCalAnimClass(dir === 'forward' ? 'view-enter-right' : 'view-enter-left');
+    setCalAnimKey(prev => prev + 1);
+  }
+
+  function onCalTouchStart(e: React.TouchEvent) {
+    e.stopPropagation();
+    calTouchStartX.current = e.touches[0].clientX;
+  }
+
+  function onCalTouchEnd(e: React.TouchEvent) {
+    e.stopPropagation();
+    const dx = e.changedTouches[0].clientX - calTouchStartX.current;
+    if (Math.abs(dx) < 40) return;
+    navigateMonths(dx < 0 ? 'forward' : 'back');
+  }
+
+  function toLocalDateStr(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  // Group events by local date string to avoid DST/timezone arithmetic issues
+  const grouped: { label: string; dateStr: string; events: CalendarEvent[] }[] = [];
+  for (let i = 0; i < 14; i++) {
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const dateStr = toLocalDateStr(day);
+    const dayEvents = allEvents.filter(ev => toLocalDateStr(eventLocalDate(ev)) === dateStr);
+    if (i === 0 || dayEvents.length > 0) {
+      const label = i === 0 ? 'Hoy' : i === 1 ? 'Mañana' : `${DAYS_FULL_ES[day.getDay()]} ${day.getDate()} ${MONTHS_SHORT_ES[day.getMonth()]}`;
+      grouped.push({ label, dateStr, events: dayEvents });
+    }
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40"
+        style={{
+          background: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 0.35s ease',
+        }}
+        onClick={handleClose}
+      />
+
+      {/* Sheet */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl flex flex-col"
+        style={{
+          background: 'rgba(8,18,36,0.97)',
+          backdropFilter: 'blur(32px)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderBottom: 'none',
+          height: '82vh',
+          transform: visible ? 'translateY(0)' : 'translateY(100%)',
+          transition: 'transform 0.38s cubic-bezier(0.32, 0.72, 0, 1)',
+        }}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 rounded-full bg-white/20" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-2 pb-4 flex-shrink-0">
+          {selectedEvent ? (
+            /* Detail header: back button + event title */
+            <button
+              onClick={() => setSelectedEvent(null)}
+              className="flex items-center gap-2 text-white/60 hover:text-white/90 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="text-sm">Volver</span>
+            </button>
+          ) : (
+            /* List header: date */
+            <div>
+              <p className="text-white/40 text-xs font-medium uppercase tracking-wider mb-0.5">
+                {DAYS_FULL_ES[now.getDay()]}
+              </p>
+              <div className="flex items-baseline gap-2">
+                <p className="text-white font-bold leading-none" style={{ fontSize: '2.5rem' }}>{now.getDate()}</p>
+                <p className="text-white/50 text-sm">{MONTHS_ES[now.getMonth()]} {now.getFullYear()}</p>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={handleClose}
+            className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/50 hover:text-white/80 hover:bg-white/15 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div className={`flex-1 min-h-0 px-6 pb-8 ${selectedEvent ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`} style={{ scrollbarWidth: 'none' }}>
+          {selectedEvent ? (
+            /* ── Event detail view ── */
+            <div className="view-enter-right flex flex-col flex-1 min-h-0 gap-3 pt-2">
+              <div>
+                <p className="text-white font-semibold text-xl leading-snug mb-1">{selectedEvent.summary}</p>
+                <p className="text-white/40 text-sm">
+                  {`${DAYS_FULL_ES[eventLocalDate(selectedEvent).getDay()]} ${eventLocalDate(selectedEvent).getDate()} ${MONTHS_ES[eventLocalDate(selectedEvent).getMonth()]} ${eventLocalDate(selectedEvent).getFullYear()}`}
+                </p>
+              </div>
+
+              <div className="h-px bg-white/[0.07] my-4" />
+
+              {/* Time */}
+              {(() => {
+                const timeStr = formatEventTime(selectedEvent);
+                const endStr = (() => {
+                  const s = startToString(selectedEvent.end);
+                  if (!s || /^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+                  const d = new Date(s);
+                  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+                })();
+                return (
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-white/[0.06] flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+                      </svg>
+                    </div>
+                    <p className="text-white/80 text-sm">
+                      {timeStr === 'Todo el día' ? 'Todo el día' : `${timeStr}${endStr ? ` – ${endStr}` : ''}`}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Description */}
+              {selectedEvent.description && (
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/[0.06] flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h12M4 18h8" />
+                    </svg>
+                  </div>
+                  <p className="text-white/65 text-sm flex-1 leading-relaxed mt-2">{selectedEvent.description}</p>
+                </div>
+              )}
+
+              {/* Location + map */}
+              {selectedEvent.location && (
+                <div className="flex flex-col flex-1 min-h-0 gap-2">
+                  <div className="flex items-start gap-3 flex-shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-white/[0.06] flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <a
+                      href={`https://maps.google.com/maps?q=${encodeURIComponent(selectedEvent.location)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sky-400 text-sm flex-1 mt-2 leading-snug"
+                    >
+                      {selectedEvent.location}
+                    </a>
+                  </div>
+                  <div className="rounded-2xl overflow-hidden flex-1 min-h-0">
+                    <iframe
+                      title="map"
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedEvent.location)}&output=embed`}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ── Events list + calendars ── */
+            <>
+              <div className="space-y-5 mb-8">
+                {grouped.map(({ label, events }) => (
+                  <div key={label}>
+                    <p className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-2">{label}</p>
+                    {events.length === 0 ? (
+                      <div
+                        className="flex items-center gap-3 rounded-2xl px-4 py-3"
+                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}
+                      >
+                        <p className="text-white/20 text-sm">Sin eventos</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {events.map((ev, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setSelectedEvent(ev)}
+                            className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 text-left active:opacity-70 transition-opacity"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
+                          >
+                            <div
+                              className="w-1 self-stretch rounded-full flex-shrink-0"
+                              style={{ background: EVENT_COLORS[i % EVENT_COLORS.length] }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white/90 text-sm font-medium truncate">{ev.summary}</p>
+                            </div>
+                            <span className="text-white/35 text-xs font-mono flex-shrink-0">{formatEventTime(ev)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="h-px bg-white/[0.07] mb-6" />
+              <div
+                className="overflow-hidden"
+                onTouchStart={onCalTouchStart}
+                onTouchEnd={onCalTouchEnd}
+              >
+                <div key={calAnimKey} className={`grid grid-cols-2 gap-4 ${calAnimClass}`}>
+                  {(() => {
+                    const m1 = getMonthYear(monthOffset);
+                    const m2 = getMonthYear(monthOffset + 1);
+                    return (
+                      <>
+                        <MiniCalendar year={m1.year} month={m1.month} events={allEvents} />
+                        <MiniCalendar year={m2.year} month={m2.month} events={allEvents} />
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function CalendarCard() {
+  const allEvents = useCalendarEvents();
+  const [expanded, setExpanded] = useState(false);
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowEnd = new Date(todayStart.getTime() + 2 * 24 * 60 * 60 * 1000);
+  const todayEvents = allEvents.filter(ev => {
+    const t = eventLocalDate(ev).getTime();
+    return t >= todayStart.getTime() && t < tomorrowStart.getTime();
+  });
+  const tomorrowEvents = allEvents.filter(ev => {
+    const t = eventLocalDate(ev).getTime();
+    return t >= tomorrowStart.getTime() && t < tomorrowEnd.getTime();
+  });
+const dayName = DAYS_FULL_ES[now.getDay()];
   const day = now.getDate();
   const month = MONTHS_ES[now.getMonth()];
   const year = now.getFullYear();
@@ -329,60 +898,70 @@ function CalendarCard() {
   const todayDow = now.getDay() === 0 ? 6 : now.getDay() - 1; // 0=Mon
 
   return (
-    <GlassCard className="flex flex-col">
-      {/* Top: date + week row */}
-      <div className="flex items-end justify-between mb-3">
-        <div>
-          <p className="text-white/40 text-xs font-medium uppercase tracking-wider mb-0.5">{dayName}</p>
-          <div className="flex items-baseline gap-2">
-            <p className="text-white font-bold leading-none" style={{ fontSize: '2.75rem' }}>{day}</p>
-            <p className="text-white/50 text-sm">{month} {year}</p>
+    <>
+      <GlassCard className="flex flex-col">
+        {/* Top: date */}
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <p className="text-white/40 text-xs font-medium uppercase tracking-wider mb-1">{dayName}</p>
+            <div className="flex items-baseline gap-2 mb-3">
+              <p className="text-white font-bold leading-none" style={{ fontSize: '2.75rem' }}>{day}</p>
+              <p className="text-white/50 text-sm">{month} {year}</p>
+            </div>
+            <div className="flex gap-1">
+              {weekDays.map((d, i) => (
+                <div
+                  key={d}
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium ${
+                    i === todayDow ? 'bg-white text-[#0d1b2e] font-semibold' : 'text-white/30'
+                  }`}
+                >
+                  {d}
+                </div>
+              ))}
+            </div>
           </div>
+          <ExpandIcon onClick={() => setExpanded(true)} />
         </div>
-        <div className="flex gap-1 mb-1">
-          {weekDays.map((d, i) => (
-            <div
-              key={d}
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium ${
-                i === todayDow ? 'bg-white text-[#0d1b2e] font-semibold' : 'text-white/30'
-              }`}
-            >
-              {d}
-            </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Divider */}
-      <div className="h-px bg-white/[0.07] mb-3" />
+        {/* Divider */}
+        <div className="h-px bg-white/[0.07] mb-3" />
 
-      {/* Events list */}
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-white/60 text-xs font-medium uppercase tracking-wider">Agenda de hoy</p>
-        <ExpandIcon />
-      </div>
-
-      {events.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 py-3">
-          <svg className="w-7 h-7 text-white/15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <p className="text-white/25 text-xs">No hay eventos programados</p>
-        </div>
-      ) : (
-        <div className="space-y-1.5 overflow-y-auto">
-          {events.map((ev, i) => (
-            <div key={i} className="flex items-center gap-3 rounded-xl px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
-              <div className="w-1 h-6 rounded-full flex-shrink-0" style={{ background: ['#38bdf8','#a78bfa','#34d399'][i % 3] }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-white/85 text-xs font-medium truncate">{ev.summary}</p>
+        {/* Events list */}
+        <div className="space-y-2 overflow-y-auto">
+          <>
+            <p className="text-white/40 text-[10px] font-medium uppercase tracking-wider px-0.5">Hoy</p>
+            {todayEvents.length === 0 ? (
+              <p className="text-white/25 text-xs px-0.5 py-1">Sin eventos</p>
+            ) : todayEvents.map((ev, i) => (
+              <div key={`today-${i}`} className="flex items-center gap-3 rounded-xl px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                <div className="w-1 h-6 rounded-full flex-shrink-0" style={{ background: EVENT_COLORS[i % EVENT_COLORS.length] }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white/85 text-xs font-medium truncate">{ev.summary}</p>
+                </div>
+                <span className="text-white/35 text-[10px] font-mono flex-shrink-0">{formatEventTime(ev)}</span>
               </div>
-              <span className="text-white/35 text-[10px] font-mono flex-shrink-0">{formatEventTime(ev)}</span>
-            </div>
-          ))}
+            ))}
+          </>
+          {tomorrowEvents.length > 0 && (
+            <>
+              <p className="text-white/40 text-[10px] font-medium uppercase tracking-wider px-0.5 pt-1">Mañana</p>
+              {tomorrowEvents.map((ev, i) => (
+                <div key={`tomorrow-${i}`} className="flex items-center gap-3 rounded-xl px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                  <div className="w-1 h-6 rounded-full flex-shrink-0" style={{ background: EVENT_COLORS[i % EVENT_COLORS.length] }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white/85 text-xs font-medium truncate">{ev.summary}</p>
+                  </div>
+                  <span className="text-white/35 text-[10px] font-mono flex-shrink-0">{formatEventTime(ev)}</span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
-      )}
-    </GlassCard>
+      </GlassCard>
+
+      {expanded && <CalendarDetailSheet allEvents={allEvents} onClose={() => setExpanded(false)} />}
+    </>
   );
 }
 
