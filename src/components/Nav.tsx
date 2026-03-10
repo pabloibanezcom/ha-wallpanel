@@ -1,13 +1,13 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 
-export type View = 'inicio' | 'luces' | 'dispositivos' | 'camaras' | 'musica';
+export type View = 'home' | 'lights' | 'devices' | 'cameras' | 'music';
 
 const VIEWS: { id: View; label: string }[] = [
-  { id: 'inicio', label: 'Dashboard' },
-  { id: 'luces', label: 'Luces' },
-  { id: 'dispositivos', label: 'Dispositivos' },
-  { id: 'camaras', label: 'Cámaras' },
-  { id: 'musica', label: 'Música' },
+  { id: 'home', label: 'Dashboard' },
+  { id: 'lights', label: 'Luces' },
+  { id: 'devices', label: 'Dispositivos' },
+  { id: 'cameras', label: 'Cámaras' },
+  { id: 'music', label: 'Música' },
 ];
 
 interface NavProps {

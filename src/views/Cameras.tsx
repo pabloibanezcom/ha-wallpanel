@@ -113,7 +113,7 @@ function LockCard() {
   );
 }
 
-export function Camaras() {
+export function Cameras() {
   return (
     <div className="space-y-4">
       <div>

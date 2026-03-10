@@ -46,7 +46,7 @@ const GROUPS = [
   },
 ];
 
-export function Luces() {
+export function Lights() {
   return (
     <div className="space-y-4">
       {GROUPS.map((group) => (

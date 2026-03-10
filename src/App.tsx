@@ -1,20 +1,20 @@
 import { useRef, useState } from 'react';
 import { HAProvider, useHA } from './context/HAContext';
 import { Nav, type View } from './components/Nav';
-import { Inicio } from './views/Inicio';
-import { Luces } from './views/Luces';
-import { Dispositivos } from './views/Dispositivos';
-import { Camaras } from './views/Camaras';
-import { Musica } from './views/Musica';
+import { Home } from './views/Home';
+import { Lights } from './views/Lights';
+import { Devices } from './views/Devices';
+import { Cameras } from './views/Cameras';
+import { Music } from './views/Music';
 import { getHaUrl } from './config/ha';
 
 const haUrl = getHaUrl();
 
-const VIEWS_ORDER: View[] = ['inicio', 'luces', 'dispositivos', 'camaras', 'musica'];
+const VIEWS_ORDER: View[] = ['home', 'lights', 'devices', 'cameras', 'music'];
 const SWIPE_THRESHOLD = 50;
 
 function Dashboard() {
-  const [view, setView] = useState<View>('inicio');
+  const [view, setView] = useState<View>('home');
   const [swipeDir, setSwipeDir] = useState<'left' | 'right'>('left');
   const { connected } = useHA();
   const touchStartX = useRef(0);
@@ -78,25 +78,25 @@ function Dashboard() {
             onTouchStart={onTouchStart}
             onTouchEnd={onTouchEnd}
           >
-            {view === 'inicio' && <Inicio key="inicio" className={animClass} />}
-            {view === 'luces' && (
-              <div key="luces" className={`p-4 h-full overflow-y-auto ${animClass}`}>
-                <Luces />
+            {view === 'home' && <Home key="home" className={animClass} />}
+            {view === 'lights' && (
+              <div key="lights" className={`p-4 h-full overflow-y-auto ${animClass}`}>
+                <Lights />
               </div>
             )}
-            {view === 'dispositivos' && (
-              <div key="dispositivos" className={`p-4 h-full overflow-y-auto ${animClass}`}>
-                <Dispositivos />
+            {view === 'devices' && (
+              <div key="devices" className={`p-4 h-full overflow-y-auto ${animClass}`}>
+                <Devices />
               </div>
             )}
-            {view === 'camaras' && (
-              <div key="camaras" className={`p-4 h-full overflow-y-auto ${animClass}`}>
-                <Camaras />
+            {view === 'cameras' && (
+              <div key="cameras" className={`p-4 h-full overflow-y-auto ${animClass}`}>
+                <Cameras />
               </div>
             )}
-            {view === 'musica' && (
-              <div key="musica" className={`absolute inset-0 overflow-hidden ${animClass}`}>
-                <Musica />
+            {view === 'music' && (
+              <div key="music" className={`absolute inset-0 overflow-hidden ${animClass}`}>
+                <Music />
               </div>
             )}
           </main>

@@ -15,14 +15,13 @@ const SPEAKERS = [
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type MassArtist   = { name: string };
-type MassImage    = { url: string; type?: string };
-type MassMetadata = { images?: MassImage[] };
-type MassAlbum    = { name: string; image?: MassImage; metadata?: MassMetadata };
+type MassMetadata = { images?: { url: string; type?: string }[] };
+type MassAlbum    = { name: string; image?: string | null; metadata?: MassMetadata };
 type MassItem     = {
   uri: string;
   name: string;
   media_type: string;
-  image?: MassImage;        // top-level image (MASS 2.x)
+  image?: string | null;
   artists?: MassArtist[];
   album?: MassAlbum;
   metadata?: MassMetadata;
@@ -30,12 +29,12 @@ type MassItem     = {
 
 function getItemImage(item: MassItem): string | undefined {
   return (
-    item.image?.url ??
+    item.image ??
+    item.album?.image ??
     item.metadata?.images?.find(i => i.type === 'thumb')?.url ??
     item.metadata?.images?.[0]?.url ??
-    item.album?.image?.url ??
-    item.album?.metadata?.images?.find(i => i.type === 'thumb')?.url ??
-    item.album?.metadata?.images?.[0]?.url
+    item.album?.metadata?.images?.[0]?.url ??
+    undefined
   );
 }
 type SearchResults = {
@@ -44,6 +43,10 @@ type SearchResults = {
   playlists?: MassItem[];
   artists?: MassItem[];
 };
+
+// ── Radio (RadioBrowser) ───────────────────────────────────────────────────────
+type RBStation = { stationuuid: string; name: string; url_resolved: string; favicon: string; tags: string };
+const RB_API = 'https://de1.api.radio-browser.info/json';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function SpeakerIcon({ type }: { type: string }) {
@@ -181,14 +184,104 @@ function ResultRow({ item, onPlay }: { item: MassItem; onPlay: (item: MassItem) 
   );
 }
 
+// label: displayed name. search: RadioBrowser search term. exact: require exact name match (avoids regional variants).
+const PRESET_STATIONS: { label: string; search: string; exact?: boolean }[] = [
+  { label: 'Cadena COPE',    search: 'Cadena COPE',    exact: true },
+  { label: 'Onda Cero',      search: 'Onda Cero',      exact: true },
+  { label: 'Cadena SER',     search: 'Cadena SER',     exact: true },
+  { label: 'Los 40',         search: 'Los 40',         exact: true },
+  { label: 'Los 40 Classic', search: 'Los 40 Classic' },
+  { label: 'Hit FM',         search: 'Hit FM',         exact: true },
+  { label: 'Kiss FM',        search: 'Kiss FM España' },
+  { label: 'Rock FM',        search: 'Rock FM',        exact: true },
+  { label: 'Cadena 100',     search: 'Cadena 100',     exact: true },
+];
+
+// ── Radio panel ───────────────────────────────────────────────────────────────
+function RadioPanel({ activeSpeaker, onClose }: { activeSpeaker: string; onClose: () => void }) {
+  const { callService } = useHA();
+  const [stations, setStations] = useState<(RBStation & { label: string })[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const results = await Promise.all(
+        PRESET_STATIONS.map(async preset => {
+          const params = new URLSearchParams({
+            name: preset.search,
+            countrycode: 'ES',
+            limit: '1',
+            hidebroken: 'true',
+            order: 'votes',
+            reverse: 'true',
+            ...(preset.exact ? { nameExact: 'true' } : {}),
+          });
+          try {
+            const res: RBStation[] = await fetch(`${RB_API}/stations/search?${params}`).then(r => r.json());
+            return res[0] ? { ...res[0], label: preset.label } : null;
+          } catch { return null; }
+        })
+      );
+      setStations(results.filter((s): s is RBStation & { label: string } => s !== null));
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  function playStation(station: RBStation) {
+    callService('music_assistant', 'play_media', {
+      entity_id: activeSpeaker,
+      media_id: station.url_resolved,
+      media_type: 'radio',
+    });
+    onClose();
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-3 mb-4 flex-shrink-0">
+        <button onClick={onClose} className="text-white/50 hover:text-white/90 transition-colors flex-shrink-0">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <p className="text-white/60 text-sm font-medium">Emisoras de radio</p>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <p className="text-white/30 text-sm">Cargando emisoras…</p>
+          </div>
+        )}
+        {!loading && (
+          <div className="grid grid-cols-4 gap-2">
+            {stations.map((station) => (
+              <button key={station.stationuuid} onClick={() => playStation(station)}
+                className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-white/[0.08] transition-colors"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.1)' }}>
+                  {station.favicon ? (
+                    <img src={station.favicon} alt="" className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : (
+                    <svg className="w-6 h-6 text-white/30" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12c0 1.1.89 2 2 2h16c1.11 0 2-.9 2-2V8c0-1.11-.89-2-2-2H5.64l9.08-3.63L14 .9 3.24 6.15z" />
+                    </svg>
+                  )}
+                </div>
+                <p className="text-white/80 text-xs font-medium text-center leading-tight line-clamp-2">{station.label}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Search panel ──────────────────────────────────────────────────────────────
-function SearchPanel({
-  activeSpeaker,
-  onClose,
-}: {
-  activeSpeaker: string;
-  onClose: () => void;
-}) {
+function SearchPanel({ activeSpeaker, onClose }: { activeSpeaker: string; onClose: () => void }) {
   const { connection, callService } = useHA();
   const [configEntryId, setConfigEntryId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -228,9 +321,7 @@ function SearchPanel({
         { config_entry_id: configEntryId, name: q, limit: 8 },
         undefined, true,
       );
-      const response = result?.response as SearchResults;
-      console.log('[MASS search]', JSON.stringify(response?.tracks?.[0], null, 2));
-      setResults(response ?? null);
+      setResults((result?.response as SearchResults) ?? null);
     } catch { setResults(null); }
     setSearching(false);
   }
@@ -347,10 +438,18 @@ function SpeakerCard({ speaker, active, onClick }: {
   );
 }
 
+type Source = 'spotify' | 'ytmusic' | 'radio';
+
 // ── Main view ─────────────────────────────────────────────────────────────────
-export function Musica() {
+export function Music() {
   const [activeSpeaker, setActiveSpeaker] = useState(SPEAKERS[0].id);
   const [showSearch, setShowSearch] = useState(false);
+  const [source, setSource] = useState<Source>('spotify');
+
+  function selectSource(s: Source) {
+    setSource(s);
+    setShowSearch(true);
+  }
 
   return (
     <div className="h-full flex gap-4 p-4">
@@ -359,7 +458,9 @@ export function Musica() {
       <div className="flex-1 flex flex-col rounded-3xl p-6"
         style={{ background: 'rgba(8,16,30,0.55)', backdropFilter: 'blur(24px)' }}>
 
-        {showSearch ? (
+        {showSearch && source === 'radio' ? (
+          <RadioPanel activeSpeaker={activeSpeaker} onClose={() => setShowSearch(false)} />
+        ) : showSearch ? (
           <SearchPanel activeSpeaker={activeSpeaker} onClose={() => setShowSearch(false)} />
         ) : (
           <>
@@ -386,22 +487,41 @@ export function Musica() {
         {/* Source selector */}
         <div className="rounded-2xl p-3" style={{ background: 'rgba(8,16,30,0.55)', backdropFilter: 'blur(24px)' }}>
           <p className="text-white/40 text-[10px] font-medium uppercase tracking-wider mb-2">Fuente</p>
-          <div className="flex gap-2">
-            <button className="flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl transition-colors"
-              style={{ background: 'rgba(30,215,96,0.15)', border: '1px solid rgba(30,215,96,0.25)' }}>
-              <svg className="w-5 h-5 text-[#1ed760]" viewBox="0 0 24 24" fill="currentColor">
+          <div className="flex gap-2 mb-2">
+            {/* Spotify */}
+            <button onClick={() => selectSource('spotify')}
+              className="flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl transition-colors"
+              style={source === 'spotify'
+                ? { background: 'rgba(30,215,96,0.15)', border: '1px solid rgba(30,215,96,0.25)' }
+                : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <svg className="w-5 h-5" style={{ color: source === 'spotify' ? '#1ed760' : 'rgba(255,255,255,0.3)' }} viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" />
               </svg>
-              <span className="text-[10px] font-medium text-[#1ed760]">Spotify</span>
+              <span className="text-[10px] font-medium" style={{ color: source === 'spotify' ? '#1ed760' : 'rgba(255,255,255,0.3)' }}>Spotify</span>
             </button>
-            <button className="flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl transition-colors"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <svg className="w-5 h-5 text-white/30" viewBox="0 0 24 24" fill="currentColor">
+            {/* YT Music */}
+            <button onClick={() => selectSource('ytmusic')}
+              className="flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl transition-colors"
+              style={source === 'ytmusic'
+                ? { background: 'rgba(255,0,0,0.15)', border: '1px solid rgba(255,0,0,0.25)' }
+                : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <svg className="w-5 h-5" style={{ color: source === 'ytmusic' ? '#ff4444' : 'rgba(255,255,255,0.3)' }} viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm0 19.104c-3.924 0-7.104-3.18-7.104-7.104S8.076 4.896 12 4.896s7.104 3.18 7.104 7.104-3.18 7.104-7.104 7.104zm0-13.332c-3.432 0-6.228 2.796-6.228 6.228S8.568 18.228 12 18.228s6.228-2.796 6.228-6.228S15.432 5.772 12 5.772zM9.684 15.54V8.46L15.816 12l-6.132 3.54z" />
               </svg>
-              <span className="text-[10px] font-medium text-white/30">YT Music</span>
+              <span className="text-[10px] font-medium" style={{ color: source === 'ytmusic' ? '#ff4444' : 'rgba(255,255,255,0.3)' }}>YT Music</span>
             </button>
           </div>
+          {/* Radio */}
+          <button onClick={() => selectSource('radio')}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors"
+            style={source === 'radio'
+              ? { background: 'rgba(147,112,219,0.18)', border: '1px solid rgba(147,112,219,0.3)' }
+              : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <svg className="w-4 h-4 flex-shrink-0" style={{ color: source === 'radio' ? '#b48ef0' : 'rgba(255,255,255,0.3)' }} viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12c0 1.1.89 2 2 2h16c1.11 0 2-.9 2-2V8c0-1.11-.89-2-2-2H5.64l9.08-3.63L14 .9 3.24 6.15zM12 18c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm8-10v2H4V8h16z" />
+            </svg>
+            <span className="text-[10px] font-medium" style={{ color: source === 'radio' ? '#b48ef0' : 'rgba(255,255,255,0.3)' }}>Radio</span>
+          </button>
         </div>
 
         {/* Speaker selector */}

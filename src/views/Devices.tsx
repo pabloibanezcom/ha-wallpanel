@@ -64,7 +64,7 @@ const BLIND_SCRIPTS = [
   { id: 'script.persiana_dormitorio_a_bajar', name: '▼ Bajar' },
 ];
 
-export function Dispositivos() {
+export function Devices() {
   const { callService } = useHA();
 
   return (

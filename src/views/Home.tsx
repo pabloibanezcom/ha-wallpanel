@@ -1140,7 +1140,7 @@ function useGreeting() {
   return 'Buenas noches';
 }
 
-export function Inicio({ className = '' }: { className?: string }) {
+export function Home({ className = '' }: { className?: string }) {
   const greeting = useGreeting();
   return (
     <div className={`h-full flex overflow-hidden ${className}`}>
